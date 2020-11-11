@@ -23,6 +23,7 @@
 
 #include "storage/SimpleLRU.h"
 #include "storage/ThreadSafeSimpleLRU.h"
+#include "storage/StripedLRU.h"
 
 using namespace Afina;
 
@@ -40,7 +41,7 @@ public:
         console.color = true;
 
         Logging::Logger &logger = logConfig->loggers["root"];
-        logger.level = Logging::Logger::Level::WARNING;
+        logger.level = Logging::Logger::Level::TRACE;
         logger.appenders.push_back("console");
         logger.format = "[%H:%M:%S %z] [thread %t] [%n] [%l] %v";
         logService.reset(new Logging::ServiceImpl(logConfig));
@@ -55,6 +56,8 @@ public:
             storage = std::make_shared<Afina::Backend::SimpleLRU>();
         } else if (storage_type == "mt_lru") {
             storage = std::make_shared<Afina::Backend::ThreadSafeSimplLRU>();
+        } else if(storage_type == "mt_slru") {
+            storage = std::make_shared<Afina::Backend::StripedLRU>();
         } else {
             throw std::runtime_error("Unknown storage type");
         }
