@@ -60,19 +60,6 @@ private:
         lru_node * prev;
         std::unique_ptr<lru_node> next;
     };
-
-    // move the most recently used element to tail
-    void move_tail(SimpleLRU::lru_node &node);
-
-    // add new element to the storage
-    bool add_element(const std::string &key, const std::string &value);
-    
-    // update existing node
-    bool update_element(SimpleLRU::lru_node &node, const std::string &val);
-
-    // delete existing node
-    bool delete_node(SimpleLRU::lru_node &node);
-
     // Maximum number of bytes could be stored in this cache.
     // i.e all (keys+values) must be less the _max_size
     std::size_t _max_size;
@@ -88,6 +75,17 @@ private:
 
     // Index of nodes from list above, allows fast random access to elements by lru_node#key
     std::map<std::reference_wrapper<const std::string>, std::reference_wrapper<lru_node>, std::less<const std::string>> _lru_index;
+
+private:
+    // move the most recently used element to tail
+    void move_tail(SimpleLRU::lru_node &node);
+    // add new element to the storage
+    bool add_element(const std::string &key, const std::string &value);
+    // update existing node
+    bool update_element(SimpleLRU::lru_node &node, const std::string &val);
+    // delete existing node
+    bool delete_node(SimpleLRU::lru_node &node);
+
 };
 
 } // namespace Backend
