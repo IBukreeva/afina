@@ -1,10 +1,13 @@
 #include "Connection.h"
 
 #include <iostream>
+#include <sys/uio.h>
 
 namespace Afina {
 namespace Network {
 namespace MTnonblock {
+
+#define MAX_OUT_SIZE 100
 
 // See Connection.h
 void Connection::Start() {
@@ -94,7 +97,7 @@ void Connection::DoRead() {
                         _event.events |= EPOLLOUT;
                     }
 
-                    if( _output.size() >= 100){ // if queue has more than 100 elements, drop EPOLLIN interest
+                    if( _output.size() >= MAX_OUT_SIZE){ // if queue has more than 100 elements, drop EPOLLIN interest
                         _event.events = EPOLLOUT | EPOLLHUP | EPOLLERR;
                     }
 
@@ -129,30 +132,45 @@ void Connection::DoWrite() {
     }
     assert(! _output.empty());
 
-    int ret;
-    auto it = _output.begin();
-    do{
-        std::string &qhead = *it;
-        ret = write(_socket, &qhead[0] + _head_offset, qhead.size() - _head_offset);
+    struct iovec iov[_output.size()];
+    std::size_t i=0;
+    
+    for ( i = 0; i < _output.size(); i++) { // init iovec
+        iov[i].iov_base = &(_output[i][0]);
+        iov[i].iov_len = _output[i].size();
+    }
+    iov[0].iov_base = static_cast<char*>(iov[0].iov_base) + _head_offset; //displace the 0th element on offset
+    iov[0].iov_len -= _head_offset; //and decrease its length also
 
-        if (ret > 0) {
-            _head_offset += ret;
-            if (_head_offset >= it->size()) {
-                it++;
-                _head_offset = 0;
-            }
+    int written_bytes = writev(_socket, iov, i);
+
+    if (written_bytes <= 0) { //an error occured
+        if (errno != EINTR && errno != EAGAIN && errno != EPIPE) {
+            _is_alive = false;
+            throw std::runtime_error("Impossible to send response");
         }
-    } while (ret > 0 && it != _output.end());
+    }
 
-   // it--;
-    _output.erase(_output.begin(), it);
+    i = 0;
+    for ( i = 0; i <_output.size(); i++) {
+        if (written_bytes - _output[i].size() >= 0) {
+            written_bytes -=  _output[i].size();
+        } else {
+            break;
+        }
+    }
+    _output.erase(_output.begin(), _output.begin() + i);
+    _head_offset = written_bytes;
 
-    if (-1 == ret) {
-        _is_alive.store(false, std::memory_order_release);;
+    if (_output.size() < MAX_OUT_SIZE){
+        _event.events |= EPOLLIN;
     }
 
     if(_output.empty()){
         _event.events = EPOLLIN | EPOLLHUP | EPOLLERR | EPOLLET;
+        // _event.events ~= EPOLLOUT;
+        // _event.events |= EPOLLET | EPOLLIN; 
+
         _is_alive.store(false, std::memory_order_relaxed);
     }
 

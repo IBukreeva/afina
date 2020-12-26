@@ -3,7 +3,10 @@
 
 #include <thread>
 #include <vector>
+#include <unordered_set>
+#include <mutex>
 
+#include "Connection.h"
 #include <afina/network/Server.h>
 
 namespace spdlog {
@@ -63,6 +66,10 @@ private:
 
     // threads serving read/write requests
     std::vector<Worker> _workers;
+
+    //set of connections and mutex for it
+    std::unordered_set<Connection*> _connections;
+    std::mutex _set_mtx;
 };
 
 } // namespace MTnonblock
