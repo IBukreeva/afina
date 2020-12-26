@@ -100,8 +100,10 @@ void ServerImpl::Stop() {
 // See Server.h
 void ServerImpl::Join() {
     // Wait for work to be complete
-    assert(_work_thread.joinable());
-    _work_thread.join();
+    //assert(_work_thread.joinable());
+    if (_work_thread.joinable()){
+        _work_thread.join();
+    }
 }
 
 // See ServerImpl.h
@@ -169,7 +171,7 @@ void ServerImpl::OnRun() {
 
                 close(pc->_socket);
                 pc->OnClose();
-                _connections.erase(pc);
+                _connections.erase(pc); //Q: do we need mutex if we change set in OnRun and Stop?
                 delete pc;
             } else if (pc->_event.events != old_mask) {
                 if (epoll_ctl(epoll_descr, EPOLL_CTL_MOD, pc->_socket, &pc->_event)) {
@@ -233,6 +235,7 @@ void ServerImpl::OnNewConnection(int epoll_descr) {
                 delete pc;
             }
         }
+        _connections.emplace(pc);
     }
 }
 
