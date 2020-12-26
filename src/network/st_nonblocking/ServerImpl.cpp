@@ -169,6 +169,7 @@ void ServerImpl::OnRun() {
 
                 close(pc->_socket);
                 pc->OnClose();
+                _connections.erase(pc);
                 delete pc;
             } else if (pc->_event.events != old_mask) {
                 if (epoll_ctl(epoll_descr, EPOLL_CTL_MOD, pc->_socket, &pc->_event)) {
@@ -176,13 +177,21 @@ void ServerImpl::OnRun() {
 
                     close(pc->_socket);
                     pc->OnClose();
-
+                    _connections.erase(pc);
                     delete pc;
                 }
             }
         }
     }
     _logger->warn("Acceptor stopped");
+
+    for (auto& connection : _connections){
+        close(connection->_socket);
+        delete connection;
+    }
+    _connections.clear();
+
+
 }
 
 void ServerImpl::OnNewConnection(int epoll_descr) {
