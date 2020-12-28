@@ -38,6 +38,8 @@ public:
     // See Server.h
     void Join() override;
 
+    void DelConnection(Connection* pc);
+
 protected:
     void OnRun();
     void OnNewConnection();

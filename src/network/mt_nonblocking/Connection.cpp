@@ -146,7 +146,7 @@ void Connection::DoWrite() {
 
     if (written_bytes <= 0) { //an error occured
         if (errno != EINTR && errno != EAGAIN && errno != EPIPE) {
-            _is_alive = false;
+            _is_alive.store(false, std::memory_order_relaxed);
             throw std::runtime_error("Impossible to send response");
         }
     }
@@ -167,9 +167,9 @@ void Connection::DoWrite() {
     }
 
     if(_output.empty()){
-        _event.events = EPOLLIN | EPOLLHUP | EPOLLERR | EPOLLET;
-        // _event.events ~= EPOLLOUT;
-        // _event.events |= EPOLLET | EPOLLIN; 
+        // _event.events = EPOLLIN | EPOLLHUP | EPOLLERR | EPOLLET;
+        _event.events &= ~EPOLLOUT;
+        _event.events |= EPOLLET | EPOLLIN; 
 
         _is_alive.store(false, std::memory_order_relaxed);
     }

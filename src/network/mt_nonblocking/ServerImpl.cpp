@@ -100,7 +100,7 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
 
     _workers.reserve(n_workers);
     for (int i = 0; i < n_workers; i++) {
-        _workers.emplace_back(pStorage, pLogging);
+        _workers.emplace_back(pStorage, pLogging, this);
         _workers.back().Start(_data_epoll_fd);
     }
 
@@ -235,12 +235,22 @@ void ServerImpl::OnRun() {
                         pc->OnError();
                         close(pc->_socket);
                         delete pc;
+                    } else{
+                        std::unique_lock<std::mutex> lock(_set_mtx);
+                        _connections.emplace(pc);
                     }
                 }
             }
         }
     }
     _logger->warn("Acceptor stopped");
+}
+
+void ServerImpl::DelConnection(Connection* pc){
+    std::unique_lock<std::mutex> lock(_set_mtx);
+    close(pc->_socket);
+    _connections.erase(pc);
+    delete pc;
 }
 
 } // namespace MTnonblock
