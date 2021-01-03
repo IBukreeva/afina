@@ -104,7 +104,7 @@ void Connection::DoRead() {
                     }
 
                     if( _output.size() >= MAX_OUT_SIZE){ // if queue has more than 100 elements, drop EPOLLIN interest
-                        _event.events = EPOLLOUT | EPOLLHUP | EPOLLERR;
+                        _event.events &= ~EPOLLIN;
                     }
 
                     // Prepare for the next command
@@ -117,13 +117,21 @@ void Connection::DoRead() {
         
         if (_read_bytes == 0) {
             _is_reading_ended = true; 
+            
+            if (_output.empty()){
+                _is_alive = false;
+            }
             _logger->debug("Connection closed");
+            
         } else {
             throw std::runtime_error(std::string(strerror(errno)));
         }
     } catch (std::runtime_error &ex) {
         _logger->error("Failed to process connection on descriptor {}: {}", _socket, ex.what());
         _is_reading_ended = true;
+        if (errno != EAGAIN) {
+            _is_alive = false;
+        }
     }
 
 
@@ -148,9 +156,9 @@ void Connection::DoWrite() {
     int written_bytes = writev(_socket, iov, i);
 
     if (written_bytes <= 0) { //an error occured
-        if (errno != EINTR && errno != EAGAIN && errno != EPIPE) {
+        if (errno != EINTR && errno != EAGAIN) {
             _is_alive = false;
-            throw std::runtime_error("Impossible to send response");
+            // throw std::runtime_error("Impossible to send response");
         }
     }
 
