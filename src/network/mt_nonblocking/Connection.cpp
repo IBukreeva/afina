@@ -98,7 +98,8 @@ void Connection::DoRead() {
                     }
 
                     if( _output.size() >= MAX_OUT_SIZE){ // if queue has more than 100 elements, drop EPOLLIN interest
-                        _event.events = EPOLLOUT | EPOLLHUP | EPOLLERR;
+                        // _event.events = EPOLLOUT | EPOLLHUP | EPOLLERR;
+                        _event.events &= ~EPOLLIN;
                     }
 
                     // Prepare for the next command
@@ -110,14 +111,22 @@ void Connection::DoRead() {
         } // while (read_now_count)
         if (_read_bytes == 0) {
             _logger->debug("Connection closed");
-            _data_available.store(true, std::memory_order_release);
-            std::atomic_thread_fence(std::memory_order_release);
+            _is_reading_ended.store(true, std::memory_order_relaxed);
+            if (_output.empty()) {
+                _is_alive.store(false, std::memory_order_relaxed);
+            }
         } else {
             throw std::runtime_error(std::string(strerror(errno)));
         }
+        std::atomic_thread_fence(std::memory_order_release);
+
     } catch (std::runtime_error &ex) {
         _logger->error("Failed to process connection on descriptor {}: {}", _socket, ex.what());
-        _data_available.store(true, std::memory_order_relaxed);
+        _is_reading_ended.store(true, std::memory_order_relaxed); //useless if connection is closing
+
+        if (errno != EAGAIN) {
+            _is_alive.store(false, std::memory_order_relaxed);
+        }
         std::atomic_thread_fence(std::memory_order_release);
     }
 
@@ -127,7 +136,7 @@ void Connection::DoRead() {
 void Connection::DoWrite() {
     _logger->debug("Do write on {} socket, queue_size {}", _socket, _output.size());
     std::atomic_thread_fence(std::memory_order_acquire);
-    if (!_data_available.load(std::memory_order_relaxed)) {
+    if (!_is_reading_ended.load(std::memory_order_relaxed)) {
         return;
     }
     assert(! _output.empty());
@@ -145,9 +154,9 @@ void Connection::DoWrite() {
     int written_bytes = writev(_socket, iov, i);
 
     if (written_bytes <= 0) { //an error occured
-        if (errno != EINTR && errno != EAGAIN && errno != EPIPE) {
+        if (errno != EINTR && errno != EAGAIN) {
             _is_alive.store(false, std::memory_order_relaxed);
-            throw std::runtime_error("Impossible to send response");
+            //throw std::runtime_error("Impossible to send response");
         }
     }
 
@@ -167,9 +176,8 @@ void Connection::DoWrite() {
     }
 
     if(_output.empty()){
-        // _event.events = EPOLLIN | EPOLLHUP | EPOLLERR | EPOLLET;
         _event.events &= ~EPOLLOUT;
-        _event.events |= EPOLLET | EPOLLIN; 
+        _event.events |= EPOLLIN; 
 
         _is_alive.store(false, std::memory_order_relaxed);
     }

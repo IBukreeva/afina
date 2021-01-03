@@ -22,7 +22,7 @@ public:
      : _socket(s),  _pStorage(ps), _logger(pl) {
         std::memset(&_event, 0, sizeof(struct epoll_event));
         _is_alive.store(true, std::memory_order_release);
-        _data_available.store(false, std::memory_order_release);
+        _is_reading_ended.store(false, std::memory_order_release);
         _read_bytes = 0;
         _head_offset = 0;
         std::memset(_read_buffer, 0, 4096);
@@ -48,7 +48,7 @@ private:
     struct epoll_event _event;
 
     std::atomic<bool> _is_alive;
-    std::atomic<bool> _data_available;
+    std::atomic<bool> _is_reading_ended;
 
     std::vector<std::string> _output;
 
