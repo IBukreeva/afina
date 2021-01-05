@@ -37,7 +37,8 @@ void Engine::Store(context &ctx) {
         std::get<1>(ctx.Stack) = stack_size;
     }
 
-    memcpy(std::get<0>(ctx.Stack), ctx.Low, stack_size);
+    memcpy(std::get<0>(ctx.Stack), ctx.Low, stack_size); // stack-buffer overflow: READ of size 304 at ...
+    // memcpy(std::get<0>(ctx.Stack), ctx.Hight, stack_size);
 
 }
 
