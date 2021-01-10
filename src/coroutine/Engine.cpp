@@ -28,9 +28,14 @@ Engine::~Engine() {
 void Engine::Store(context &ctx) {
     char tmp;
 
-    ctx.Hight = &tmp;
-    auto stack_size = abs(ctx.Hight - ctx.Low);
-    std::cout << "stack_size: " << stack_size << std::endl;
+    if (&tmp > ctx.Low) { // Hight > Low
+        ctx.Hight = &tmp;
+    } else { // Hight < Low
+        ctx.Hight = ctx.Low;
+        ctx.Low = &tmp;
+    }
+
+    auto stack_size = ctx.Hight - ctx.Low;
     if(std::get<1>(ctx.Stack) < stack_size || std::get<1>(ctx.Stack) > 2*stack_size) {
         delete[] std::get<0>(ctx.Stack);
         std::get<0>(ctx.Stack) = new char[stack_size];
@@ -38,7 +43,6 @@ void Engine::Store(context &ctx) {
     }
 
     memcpy(std::get<0>(ctx.Stack), ctx.Low, stack_size); // stack-buffer overflow: READ of size 304 at ...
-    // memcpy(std::get<0>(ctx.Stack), ctx.Hight, stack_size);
 
 }
 
@@ -48,7 +52,7 @@ void Engine::Restore(context &ctx) {
         Restore(ctx);
     }
 
-    std::size_t stack_size = abs(ctx.Hight - ctx.Low);
+    std::size_t stack_size = ctx.Hight - ctx.Low;
     memcpy(ctx.Low, std::get<0>(ctx.Stack), stack_size);
     cur_routine = &ctx;
     longjmp(ctx.Environment, 1);
