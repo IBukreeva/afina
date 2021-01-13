@@ -13,6 +13,7 @@ Engine::~Engine() {
     auto &routine = alive;
     while (routine != nullptr) {
         auto &tmp = routine;
+        delete[] std::get<0>(tmp->Stack);
         routine = routine->next;
         delete tmp;  
     }
@@ -20,6 +21,7 @@ Engine::~Engine() {
     routine = blocked;
     while (routine != nullptr) {
         auto &tmp = routine;
+        delete[] std::get<0>(tmp->Stack);
         routine = routine->next;
         delete tmp;  
     }
@@ -31,7 +33,6 @@ void Engine::Store(context &ctx) {
     if (&tmp > ctx.Low) { // Hight > Low
         ctx.Hight = &tmp;
     } else { // Hight < Low
-        ctx.Hight = ctx.Low;
         ctx.Low = &tmp;
     }
 
@@ -42,7 +43,7 @@ void Engine::Store(context &ctx) {
         std::get<1>(ctx.Stack) = stack_size;
     }
 
-    memcpy(std::get<0>(ctx.Stack), ctx.Low, stack_size); // stack-buffer overflow: READ of size 304 at ...
+    memcpy(std::get<0>(ctx.Stack), ctx.Low, stack_size);
 
 }
 
@@ -65,7 +66,7 @@ void Engine::yield() {
 void Engine::sched(void *routine_) {
 
     context *coro_to_switch;
-    if (routine_ = nullptr) { // switch to any alive coroutine
+    if (routine_ == nullptr) { // switch to any alive coroutine
         //but before it we need to check if we have any alive coro to switch  
         if (alive==nullptr) {
             return;
@@ -90,11 +91,12 @@ void Engine::sched(void *routine_) {
     }
 
     // finally switch to coro_to_switch
-    if (setjmp(cur_routine->Environment) > 0) {
-        return;
+    if (cur_routine != idle_ctx) {
+        if (setjmp(cur_routine->Environment) > 0) {
+            return;
+        }
+        Store(*cur_routine);
     }
-    Store(*cur_routine);
-
     Restore(*coro_to_switch);
 }
 

@@ -149,7 +149,7 @@ public:
         void *pc = run(main, std::forward<Ta>(args)...);
 
         idle_ctx = new context();
-        idle_ctx->Low = StackBottom;
+        idle_ctx->Low = idle_ctx->Hight = StackBottom;
         if (setjmp(idle_ctx->Environment) > 0) {
             if (alive == nullptr) {
                 _unblocker(*this);
@@ -159,10 +159,12 @@ public:
             yield();
         } else if (pc != nullptr) {
             Store(*idle_ctx);
+            cur_routine = idle_ctx;
             sched(pc);
         }
 
         // Shutdown runtime
+        delete[] std::get<0>(idle_ctx->Stack);
         delete idle_ctx;
         this->StackBottom = 0;
     }
@@ -176,7 +178,7 @@ public:
      * Register new coroutine. It won't receive control until scheduled explicitely or implicitly. In case of some
      * errors function returns -1
      */
-    template <typename... Ta> void *run_impl(char *pc_low, void (*func)(Ta...), Ta &&... args) {
+    template <typename... Ta> void *run_impl(char *pc_start, void (*func)(Ta...), Ta &&... args) {
         if (this->StackBottom == 0) {
             // Engine wasn't initialized yet
             return nullptr;
@@ -184,7 +186,7 @@ public:
 
         // New coroutine context that carries around all information enough to call function
         context *pc = new context();
-        pc->Low = pc_low;
+        pc->Low = pc->Hight = pc_start;
 
         // Store current state right here, i.e just before enter new coroutine, later, once it gets scheduled
         // execution starts here. Note that we have to acquire stack of the current function call to ensure
@@ -215,7 +217,7 @@ public:
             // current coroutine finished, and the pointer is not relevant now
             cur_routine = nullptr;
             pc->prev = pc->next = nullptr;
-            delete std::get<0>(pc->Stack);
+            delete[] std::get<0>(pc->Stack);
             delete pc;
 
             // We cannot return here, as this function "returned" once already, so here we must select some other
@@ -227,9 +229,7 @@ public:
         // setjmp remembers position from which routine could starts execution, but to make it correctly
         // it is neccessary to save arguments, pointer to body function, pointer to context, e.t.c - i.e
         // save stack.
-        printf("before Store()\n");
         Store(*pc);
-        printf("after Store()\n"); // <- это уже не печатается !!
 
         // Add routine as alive double-linked list
         pc->next = alive;
