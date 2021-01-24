@@ -3,7 +3,8 @@
 
 #include <atomic>
 #include <thread>
-
+#include <set>
+#include <condition_variable>
 #include <afina/network/Server.h>
 
 namespace spdlog {
@@ -52,6 +53,15 @@ private:
 
     // Thread to run network on
     std::thread _thread;
+
+    std::mutex _mtx;
+    std::set<int> _sockets;
+    std::condition_variable _stop;
+    int max_workers;
+
+    void work_func(int client_socket);
+
+
 };
 
 } // namespace MTblocking
