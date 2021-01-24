@@ -132,10 +132,10 @@ void Connection::DoRead() {
         if (errno != EAGAIN) {
             _is_alive = false;
         }
+        if (_output.empty()){
+            _is_alive = false;
+        }
     }
-
-
-
 }
 
 // See Connection.h
