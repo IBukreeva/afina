@@ -127,6 +127,9 @@ void Connection::DoRead() {
         if (errno != EAGAIN) {
             _is_alive.store(false, std::memory_order_relaxed);
         }
+        if (_output.empty()) {
+            _is_alive.store(false, std::memory_order_relaxed);
+        }
         std::atomic_thread_fence(std::memory_order_release);
     }
 
