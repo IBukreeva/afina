@@ -32,7 +32,10 @@ namespace STnonblock {
 ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Logging::Service> pl) : Server(ps, pl) {}
 
 // See Server.h
-ServerImpl::~ServerImpl() {}
+ServerImpl::~ServerImpl() {
+    Stop();
+    Join();
+}
 
 // See Server.h
 void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) {
@@ -91,12 +94,16 @@ void ServerImpl::Stop() {
     if (eventfd_write(_event_fd, 1)) {
         throw std::runtime_error("Failed to wakeup workers");
     }
+    shutdown(_server_socket, SHUT_RDWR);
 }
 
 // See Server.h
 void ServerImpl::Join() {
     // Wait for work to be complete
-    _work_thread.join();
+    //assert(_work_thread.joinable());
+    if (_work_thread.joinable()){
+        _work_thread.join();
+    }
 }
 
 // See ServerImpl.h
@@ -139,7 +146,7 @@ void ServerImpl::OnRun() {
             }
 
             // That is some connection!
-            Connection *pc = static_cast<Connection *>(current_event.data.ptr);
+            auto *pc = static_cast<Connection *>(current_event.data.ptr); // Connection* ends with abort 
 
             auto old_mask = pc->_event.events;
             if ((current_event.events & EPOLLERR) || (current_event.events & EPOLLHUP)) {
@@ -164,7 +171,7 @@ void ServerImpl::OnRun() {
 
                 close(pc->_socket);
                 pc->OnClose();
-
+                _connections.erase(pc); //Q: do we need mutex if we change set in OnRun and Stop?
                 delete pc;
             } else if (pc->_event.events != old_mask) {
                 if (epoll_ctl(epoll_descr, EPOLL_CTL_MOD, pc->_socket, &pc->_event)) {
@@ -172,13 +179,21 @@ void ServerImpl::OnRun() {
 
                     close(pc->_socket);
                     pc->OnClose();
-
+                    _connections.erase(pc);
                     delete pc;
                 }
             }
         }
     }
     _logger->warn("Acceptor stopped");
+
+    for (auto& connection : _connections){
+        close(connection->_socket);
+        delete connection;
+    }
+    _connections.clear();
+
+
 }
 
 void ServerImpl::OnNewConnection(int epoll_descr) {
@@ -207,7 +222,7 @@ void ServerImpl::OnNewConnection(int epoll_descr) {
         }
 
         // Register the new FD to be monitored by epoll.
-        Connection *pc = new(std::nothrow) Connection(infd);
+        Connection *pc = new(std::nothrow) Connection(infd, pStorage, _logger);
         if (pc == nullptr) {
             throw std::runtime_error("Failed to allocate connection");
         }
@@ -220,6 +235,7 @@ void ServerImpl::OnNewConnection(int epoll_descr) {
                 delete pc;
             }
         }
+        _connections.emplace(pc);
     }
 }
 

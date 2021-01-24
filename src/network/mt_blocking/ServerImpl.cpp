@@ -94,7 +94,7 @@ void ServerImpl::Join() {
     _thread.join();
     close(_server_socket);
     std::unique_lock<std::mutex> lock(_mtx);
-    while (_sockets.size() != 0) {
+    while (running && !_sockets.empty()) {
         _stop.wait(lock);
     }
 
@@ -139,14 +139,9 @@ void ServerImpl::OnRun() {
         {
             std::unique_lock<std::mutex> lock(_mtx);
             if (running && _sockets.size() < max_workers){
-                try{
-                    std::thread worker(&ServerImpl::work_func, this, client_socket);
-                    worker.detach();
-                    _sockets.insert(client_socket);
-                } catch (...){
-                    close(client_socket);
-                }
-
+                std::thread worker(&ServerImpl::work_func, this, client_socket);
+                worker.detach();
+                _sockets.insert(client_socket);
             }
         }
 
